@@ -36,11 +36,6 @@ set -e
 #   done
 #
 
-
-OS_COMPUTE_URL="https://compute.dream.io:8774"
-OS_GLANCE_URL="https://image.dream.io:9292"
-OS_KEYSTONE_URL="https://keystone.dream.io"
-
 nova.get_request() {
   keystone.get_token
 
@@ -100,4 +95,28 @@ nova.image_list() {
 nova.list() {
   nova.get_request "$OS_COMPUTE_URL/v2/$OS_TENANT_ID/servers" \
     | jq -c '.servers[]' | sed 's/^\[\]$//'
+}
+
+glance.image_create() {
+  local name="$1"
+  local file="$2"
+  local format=${3:-raw}
+
+  keystone.get_token
+
+  if [ ! -r "$file" ]; then
+    echo "Can't read file '$file'"
+    return 1
+  fi
+
+  curl -s -X POST \
+       --retry 2 \
+       -H "X-Auth-Token: $OS_TOKEN" \
+       -H "X-Image-Meta-Name: $name" \
+       -H "X-Image-Meta-disk_format: $format" \
+       -H "x-image-meta-container_format: bare" \
+       -H "Content-Type: application/octet-stream" \
+       -H "Accept: application/json" \
+       --data-binary @$file \
+       $OS_GLANCE_URL/v1/images
 }
